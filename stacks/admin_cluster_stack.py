@@ -18,6 +18,10 @@ class AdminClusterStack(Stack):
             # One T3.small instance can contain up to 11 pods with AWS VPC CNI
             default_capacity_instance=ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
             default_capacity=2,
+
+            alb_controller=eks.AlbControllerOptions(
+                version=eks.AlbControllerVersion.V2_4_1,
+            ),
         )
 
 
