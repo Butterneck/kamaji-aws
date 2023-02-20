@@ -1,8 +1,15 @@
 from aws_cdk import (
+    CfnJson,
+    CustomResource,
     Stack,
+    Token,
     aws_eks as eks,
     aws_ec2 as ec2,
     aws_iam as iam,
+    aws_lambda as lambda_,
+    aws_logs as logs,
+    custom_resources as cr,
+    aws_ssm as ssm,
 )
 from aws_cdk.lambda_layer_kubectl import KubectlLayer
 from constructs import Construct
@@ -18,11 +25,53 @@ class AdminClusterStack(Stack):
 
             # One T3.small instance can contain up to 11 pods with AWS VPC CNI
             default_capacity_instance=ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
-            default_capacity=2,
+            default_capacity=3,
 
             alb_controller=eks.AlbControllerOptions(
                 version=eks.AlbControllerVersion.V2_4_1,
             ),
+        )
+
+        ssm.StringParameter(self, "admin-cluster-name-param",
+            parameter_name="/eks/admin-cluster/name",
+            string_value=admin_cluster.cluster_name,
+        )
+
+        ssm.StringParameter(self, "admin-cluster-kubectl-role-arn",
+            parameter_name="/eks/admin-cluster/kubectl/role/arn",
+            string_value=admin_cluster.kubectl_role.role_arn,
+        )
+
+        on_event = lambda_.Function(
+            self,
+            "oidc-provider-id-fn",
+            runtime=lambda_.Runtime.PYTHON_3_9,
+            handler="index.on_event",
+            code=lambda_.Code.from_asset("get_oidc_provider_id"),
+            log_retention=logs.RetentionDays.ONE_WEEK,
+        )
+
+        my_provider = cr.Provider(self, "oidc-provider-id-provider",
+            on_event_handler=on_event,
+            log_retention=logs.RetentionDays.ONE_DAY,
+        )
+
+        oidc_provider_id_cr = CustomResource(
+            self, 
+            "oidc-provider-id-cr",
+            service_token=my_provider.service_token,
+            properties={
+                "oidcProviderArn": admin_cluster.open_id_connect_provider.open_id_connect_provider_arn,
+            },
+        )
+
+        oidc_provider_id = Token.as_string(oidc_provider_id_cr.get_att('Id'))
+
+        oidc_tr_conditions = CfnJson(self, "oidc-condition-json",
+            value={
+                f"{Token.as_string(oidc_provider_id)}:aud": "sts.amazonaws.com",
+                f"{Token.as_string(oidc_provider_id)}:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa",
+            },
         )
 
         ebs_csi_role = iam.Role(
@@ -32,134 +81,12 @@ class AdminClusterStack(Stack):
                 federated=admin_cluster.open_id_connect_provider.open_id_connect_provider_arn,
                 assume_role_action="sts:AssumeRoleWithWebIdentity",
                 conditions={
-                    "StringEquals": {
-                        "$oidc_provider:aud": "sts.amazonaws.com",
-                        "$oidc_provider:sub": "system:serviceaccount:kube-system:ebs-csi-controller-sa",
-                    },
+                    "StringEquals": oidc_tr_conditions,
                 },
             ),
-            inline_policies={
-                "default": iam.PolicyDocument(
-                    statements=[
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:CreateSnapshot",
-                                "ec2:AttachVolume",
-                                "ec2:DetachVolume",
-                                "ec2:ModifyVolume",
-                                "ec2:DescribeAvailabilityZones",
-                                "ec2:DescribeInstances",
-                                "ec2:DescribeSnapshots",
-                                "ec2:DescribeTags",
-                                "ec2:DescribeVolumes",
-                                "ec2:DescribeVolumesModifications",
-                            ],
-                            resources=["*"],
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:CreateTags",
-                            ],
-                            resources=[
-                                "arn:aws:ec2:*:*:volume/*",
-                                "arn:aws:ec2:*:*:snapshot/*",
-                            ],
-                            conditions={
-                                "StringEquals": {
-                                    "ec2:CreationAction": [
-                                        "CreateVolume",
-                                        "CreateSnapshot",
-                                    ],
-                                },
-                            },
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:DeleteTags",
-                            ],
-                            resources=[
-                                "arn:aws:ec2:*:*:volume/*",
-                                "arn:aws:ec2:*:*:snapshot/*",
-                            ],
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:CreateVolume",
-                            ],
-                            resources=["*"],
-                            conditions={
-                                "StringLike": {
-                                    "aws:RequestTag/ebs.csi.aws.com/cluster": "true",
-                                },
-                            },
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:CreateVolume",
-                            ],
-                            resources=["*"],
-                            conditions={
-                                "StringLike": {
-                                    "aws:RequestTag/CSIVolumeName": "*",
-                                },
-                            },
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:DeleteVolume",
-                            ],
-                            resources=["*"],
-                            conditions={
-                                "StringLike": {
-                                    "ec2:ResourceTag/ebs.csi.aws.com/cluster": "true",
-                                },
-                            },
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:DeleteVolume",
-                            ],
-                            resources=["*"],
-                            conditions={
-                                "StringLike": {
-                                    "ec2:ResourceTag/CSIVolumeName": "*",
-                                },
-                            },
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:DeleteVolume",
-                            ],
-                            resources=["*"],
-                            conditions={
-                                "StringLike": {
-                                    "ec2:ResourceTag/kubernetes.io/created-for/pvc/name": "*",
-                                },
-                            },
-                        ),
-                        iam.PolicyStatement(
-                            effect=iam.Effect.ALLOW,
-                            actions=[
-                                "ec2:DeleteSnapshot",
-                            ],
-                            resources=["*"],
-                            conditions={
-                                "StringLike": {
-                                    "ec2:ResourceTag/CSIVolumeSnapshotName": "*",
-                                },
-                            },
-                        ),
-                    ],
-                ),
-            },
+            managed_policies=[
+                iam.ManagedPolicy.from_aws_managed_policy_name("service-role/AmazonEBSCSIDriverPolicy"),
+            ],
         )
 
         ebs_csi_addon = eks.CfnAddon(self, "ebs-csi-addon",
