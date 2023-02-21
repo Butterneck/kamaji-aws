@@ -38,6 +38,11 @@ class AdminClusterStack(Stack):
             string_value=admin_cluster.kubectl_role.role_arn,
         )
 
+        ssm.StringParameter(self, "admin-cluster-vpc-id",
+            parameter_name="/eks/admin-cluster/vpc/id",
+            string_value=admin_cluster.vpc.vpc_id,
+        )
+
         on_event = lambda_.Function(
             self,
             "oidc-provider-id-fn",

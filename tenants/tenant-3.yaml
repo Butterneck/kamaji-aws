@@ -1,0 +1,6 @@
+name: tenant-3
+namespace: tenant-3
+domain: clastix3.labs
+version: v1.26.0
+port: 6443
+proxy_port: 8132

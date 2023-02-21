@@ -1,0 +1,6 @@
+name: tenant-2
+namespace: tenant-2
+domain: clastix2.labs
+version: v1.26.0
+port: 6443
+proxy_port: 8132

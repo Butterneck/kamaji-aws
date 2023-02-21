@@ -10,20 +10,14 @@ class TenantConfig():
     version: str
     port: int
     proxy_port: int
-    pod_cidr: str
-    svc_cidr: str
-    dns_service: str
 
-    def __init__(self, name: str, namespace: str, domain: str, version: str, port: int, proxy_port: int, pod_cidr: str, svc_cidr: str, dns_service: str) -> None:
+    def __init__(self, name: str, namespace: str, domain: str, version: str, port: int, proxy_port: int) -> None:
         self.name = name
         self.namespace = namespace
         self.domain = domain
         self.version = version
         self.port = port
         self.proxy_port = proxy_port
-        self.pod_cidr = pod_cidr
-        self.svc_cidr = svc_cidr
-        self.dns_service = dns_service
 
     @staticmethod
     def load_from_file(file_path: str):
