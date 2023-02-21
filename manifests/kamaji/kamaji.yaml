@@ -4,20 +4,13 @@ metadata:
   name: kamaji-system
 ---
 apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: GitRepository
+kind: HelmRepository
 metadata:
   name: clastix
   namespace: kamaji-system
 spec:
   interval: 1m
-  url: https://github.com/butterneck/kamaji
-  ref:
-    branch: issue/265
-  ignore: |
-    # exclude all
-    /*
-    # include charts directory
-    !/charts/
+  url: https://clastix.github.io/charts
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2beta1
 kind: HelmRelease
@@ -28,11 +21,10 @@ spec:
   interval: 5m
   chart:
     spec:
-      chart: ./charts/kamaji
+      chart: kamaji
       sourceRef:
-        kind: GitRepository
+        kind: HelmRepository
         name: clastix
         namespace: kamaji-system
-      # version: 0.11.0
+      version: 0.11.1
       interval: 1m
-      reconcileStrategy: Revision
