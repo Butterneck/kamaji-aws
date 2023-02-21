@@ -1,16 +1,11 @@
 
-# Welcome to your CDK Python project!
+# Kamaji AWS
 
-This is a blank project for CDK development with Python.
+Deploy [kamaji](https://github.com/clastix/kamaji) on AWS EKS
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+# How to 
 
-This project is set up like a standard Python project.  The initialization
-process also creates a virtualenv within this project, stored under the `.venv`
-directory.  To create the virtualenv it assumes that there is a `python3`
-(or `python` for Windows) executable in your path with access to the `venv`
-package. If for any reason the automatic creation of the virtualenv fails,
-you can create the virtualenv manually.
+## deploy
 
 To manually create a virtualenv on MacOS and Linux:
 
@@ -37,22 +32,31 @@ Once the virtualenv is activated, you can install the required dependencies.
 $ pip install -r requirements.txt
 ```
 
-At this point you can now synthesize the CloudFormation template for this code.
+Export AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY env variables.
 
 ```
-$ cdk synth
+$ export AWS_ACCESS_KEY_ID="..."
+$ export AWS_SECRET_ACCESS_KEY="..."
 ```
 
-To add additional dependencies, for example other CDK libraries, just add
-them to your `setup.py` file and rerun the `pip install -r requirements.txt`
-command.
+At this point you can deploy the EKS cluster.
 
-## Useful commands
+```
+$ npx cdk deploy AdminClusterStack
+```
 
- * `cdk ls`          list all stacks in the app
- * `cdk synth`       emits the synthesized CloudFormation template
- * `cdk deploy`      deploy this stack to your default AWS account/region
- * `cdk diff`        compare deployed stack with current state
- * `cdk docs`        open CDK documentation
+Now install [Flux](https://fluxcd.io/flux/installation/) to install Kamaji and it's dependencies.
 
-Enjoy!
+Finally deploy all the tenants.
+
+```
+$ npx cdk deploy --all
+```
+
+## Add new tenants
+
+In order to add new tenants add a new `.yaml` file on `tenants` folder with tenant's configuration; then run 
+
+```
+$ npx cdk deploy --all
+```
