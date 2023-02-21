@@ -11,7 +11,7 @@ from aws_cdk import (
     custom_resources as cr,
     aws_ssm as ssm,
 )
-from aws_cdk.lambda_layer_kubectl import KubectlLayer
+from aws_cdk.lambda_layer_kubectl_v24 import KubectlV24Layer
 from constructs import Construct
 
 class AdminClusterStack(Stack):
@@ -21,15 +21,11 @@ class AdminClusterStack(Stack):
 
         admin_cluster = eks.Cluster(self, "admin-cluster",
             version=eks.KubernetesVersion.V1_24,
-            kubectl_layer=KubectlLayer(self, "kubectl"),
+            kubectl_layer=KubectlV24Layer(self, "kubectlV24"),
 
             # One T3.small instance can contain up to 11 pods with AWS VPC CNI
             default_capacity_instance=ec2.InstanceType.of(ec2.InstanceClass.T3, ec2.InstanceSize.SMALL),
             default_capacity=3,
-
-            alb_controller=eks.AlbControllerOptions(
-                version=eks.AlbControllerVersion.V2_4_1,
-            ),
         )
 
         ssm.StringParameter(self, "admin-cluster-name-param",
